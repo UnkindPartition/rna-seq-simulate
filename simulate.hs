@@ -39,10 +39,10 @@ main = join . execParser $
 work :: FilePath -> FilePath -> FilePath -> Int -> Int64 -> IO ()
 work infile outfile freqfile n_reads read_len =
   (flip runRVarT DevRandom :: RVarT IO () -> IO ()) $ do
-    refs :: [LBS.ByteString] <- liftIO $ map (unSD . seqdata) <$> readFasta infile
+    refs <- liftIO $ readFasta infile
     abundances <- simulate_abundances (length refs)
     reads <-  forM [1..n_reads] $ \i -> do
-      ref <- categoricalT (zip abundances refs)
+      ref :: LBS.ByteString <- categoricalT (zip abundances (map (unSD . seqdata) refs))
       start_pos <- integralUniform 0 (LBS.length ref - 1)
       let
         read0 = LBS.take read_len $ LBS.drop start_pos ref
@@ -50,4 +50,4 @@ work infile outfile freqfile n_reads read_len =
       return $ Seq (SeqLabel . LBS.pack $ printf "read%.4d" i) (SeqData read) Nothing
     liftIO $ do
       writeFasta outfile reads
-      writeFile freqfile $ unlines $ map (printf "%.5f") abundances
+      writeFile freqfile $ unlines $ zipWith (printf "%s\t%.5f") (map (toString . seqid) refs) abundances
