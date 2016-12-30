@@ -1,5 +1,7 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall #-}
 import Prelude hiding (reads, read)
+import Data.Int
 import Data.Random
 import Data.Random.Distribution.Categorical
 import Data.Random.Distribution.Uniform
@@ -7,6 +9,10 @@ import Data.Random.Source.DevRandom
 import Control.Monad
 import Control.Monad.IO.Class
 import Options.Applicative
+import Bio.Core.Sequence
+import Bio.Sequence.Fasta
+import qualified Data.ByteString.Lazy.Char8 as LBS
+import Text.Printf
 
 simulate_abundances :: Int -> RVarT m [Double]
 simulate_abundances n = do
@@ -30,16 +36,18 @@ main = join . execParser $
         <*> option auto (long "nreads"   <> short 'n' <> metavar "NUMBER")
         <*> option auto (long "readlen"  <> short 'l' <> metavar "NUMBER")
 
-work :: FilePath -> FilePath -> FilePath -> Int -> Int -> IO ()
+work :: FilePath -> FilePath -> FilePath -> Int -> Int64 -> IO ()
 work infile outfile freqfile n_reads read_len =
   (flip runRVarT DevRandom :: RVarT IO () -> IO ()) $ do
-    refs <- lines <$> liftIO (readFile infile)
+    refs :: [LBS.ByteString] <- liftIO $ map (unSD . seqdata) <$> readFasta infile
     abundances <- simulate_abundances (length refs)
-    reads <-  replicateM n_reads $ do
-      ref <- categoricalT $ zip abundances refs
-      start_pos <- integralUniform 0 (length ref - 1)
-      let read = take read_len $ drop start_pos ref ++ repeat 'A' 
-      return read
+    reads <-  forM [1..n_reads] $ \i -> do
+      ref <- categoricalT (zip abundances refs)
+      start_pos <- integralUniform 0 (LBS.length ref - 1)
+      let
+        read0 = LBS.take read_len $ LBS.drop start_pos ref
+        read = read0 <> LBS.replicate (read_len - LBS.length read0) 'A'
+      return $ Seq (SeqLabel . LBS.pack $ printf "read%.4d" i) (SeqData read) Nothing
     liftIO $ do
-      writeFile outfile $ unlines reads
-      writeFile freqfile $ unlines reads
+      writeFasta outfile reads
+      writeFile freqfile $ unlines $ map (printf "%.5f") abundances

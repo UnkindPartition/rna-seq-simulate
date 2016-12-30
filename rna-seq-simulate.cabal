@@ -6,9 +6,9 @@ maintainer:          roma@ro-che.info
 build-type:          Simple
 cabal-version:       >=1.10
 
-executable simulate-rna-seq
+executable rna-seq-simulate
   main-is:             simulate.hs
-  build-depends:       base, biofasta, biofastq,
+  build-depends:       base, biofasta, biocore,
                        random-fu, random-source,
-                       optparse-applicative
+                       optparse-applicative, bytestring
   default-language:    Haskell2010
