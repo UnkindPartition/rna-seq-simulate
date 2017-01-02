@@ -74,6 +74,6 @@ work infile outfile freqfile n_reads read_len =
       writeFasta outfile reads
       writeFile freqfile $ unlines $
         "seq_id\ttrue_tpm\tobserved_tpm" :
-        zipWith3 (printf "%s\t%.4f\t%.4f") (map (toString . seqid) refs)
+        zipWith3 (printf "%s\t%.2f\t%.2f") (map (toString . seqid) refs)
           true_tpm
           observed_tpm
