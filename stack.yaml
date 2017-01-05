@@ -37,8 +37,10 @@ resolver: lts-7.0
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
-# Dependency packages to be pulled from upstream that are not in the resolver
-# (e.g., acme-missiles-0.3)
+- location:
+    git: https://github.com/ketil-malde/biofastq.git
+    commit: 8bb59fe8acceb892bc19bbaaef5484584dd76406
+  extra-dep: true
 extra-deps: []
 
 # Override default flag values for local packages and extra-deps

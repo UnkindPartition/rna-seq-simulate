@@ -13,8 +13,10 @@ import Control.Monad.IO.Class
 import Control.Monad.State
 import Options.Applicative
 import Bio.Core.Sequence
-import Bio.Sequence.Fasta
-import qualified Data.ByteString.Lazy.Char8 as LBS
+import qualified Bio.Sequence.Fasta as Fasta
+import qualified Bio.Sequence.FastQ as Fastq
+import qualified Data.ByteString.Lazy.Char8 as LBS8
+import qualified Data.ByteString.Lazy as LBS
 import Text.Printf
 
 -- | Return random relative (unnormalized) number of transcripts
@@ -22,10 +24,10 @@ simulate_abundances :: Int -> RVarT m [Double]
 simulate_abundances n = do
   replicateM n $ exp <$> normalT (-2) 1
 
-seq_length :: Sequence -> Double
+seq_length :: Fasta.Sequence -> Double
 seq_length = fromIntegral . LBS.length . unSD . seqdata
 
-calc_observed_tpm :: Map.Map SeqLabel Double -> [Sequence] -> [Double]
+calc_observed_tpm :: Map.Map SeqLabel Double -> [Fasta.Sequence] -> [Double]
 calc_observed_tpm freq_map seqs =
   let
     rpk = map (\s -> (fromMaybe 0 $ Map.lookup (seqid s) freq_map) / seq_length s) seqs
@@ -51,7 +53,7 @@ main = join . execParser $
 work :: FilePath -> FilePath -> FilePath -> Int -> Int64 -> IO ()
 work infile outfile freqfile n_reads read_len =
   (flip runRVarT DevRandom :: RVarT IO () -> IO ()) $ do
-    refs <- liftIO $ readFasta infile
+    refs <- liftIO $ Fasta.readFasta infile
     transcript_abundances <- simulate_abundances (length refs)
     let nucleotide_abundances = zipWith (\f r -> f * seq_length r) transcript_abundances refs
     -- A Map in the State monad contain the actual frequencies of reads
@@ -65,13 +67,16 @@ work infile outfile freqfile n_reads read_len =
         start_pos <- lift $ integralUniform 0 (LBS.length ref_seq - 1)
         let
           read0 = LBS.take read_len $ LBS.drop start_pos ref_seq
-          read = read0 <> LBS.replicate (read_len - LBS.length read0) 'A'
-        return $ Seq (SeqLabel . LBS.pack $ printf "read%.4d" i) (SeqData read) Nothing
+          read = read0 <> LBS8.replicate (read_len - LBS.length read0) 'A'
+        return $ Fastq.Seq
+          (SeqLabel . LBS8.pack $ printf "read%.4d" i)
+          (SeqData read)
+          (QualData $ LBS.replicate (LBS.length read) 40)
     let
       true_tpm = map (* (1e6  / sum transcript_abundances)) transcript_abundances
       observed_tpm = calc_observed_tpm freqs refs
     liftIO $ do
-      writeFasta outfile reads
+      Fastq.writeSangerQ outfile reads
       writeFile freqfile $ unlines $
         "seq_id\ttrue_tpm\tobserved_tpm" :
         zipWith3 (printf "%s\t%.2f\t%.2f") (map (toString . seqid) refs)

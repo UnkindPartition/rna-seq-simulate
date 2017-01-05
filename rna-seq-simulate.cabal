@@ -8,7 +8,7 @@ cabal-version:       >=1.10
 
 executable rna-seq-simulate
   main-is:             simulate.hs
-  build-depends:       base, biofasta, biocore,
+  build-depends:       base, biofasta, biofastq, biocore,
                        random-fu, random-source,
                        optparse-applicative, bytestring,
                        containers, mtl
